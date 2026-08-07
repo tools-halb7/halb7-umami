@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { Badge, Button, Column, Grid, Row, Text, TextField } from '@umami/react-zen';
+import { Button, Column, Grid, Row, StatusLight, Text, TextField } from '@umami/react-zen';
 import { PageBody } from '@/components/common/PageBody';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Panel } from '@/components/common/Panel';
@@ -274,13 +274,13 @@ export function UtmPage() {
                 <Text weight="bold" size="sm">
                   Vorschau
                 </Text>
-                <Badge variant={isReady ? 'success' : 'warning'}>
+                <StatusLight variant={isReady ? 'success' : 'warning'}>
                   {isReady
                     ? 'Bereit'
                     : !parsedBase
                       ? 'Ziel-URL fehlt'
                       : `Fehlt: ${missing.map(m => m.label).join(', ')}`}
-                </Badge>
+                </StatusLight>
               </Row>
               <TextField
                 isReadOnly
