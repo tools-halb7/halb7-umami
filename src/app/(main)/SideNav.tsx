@@ -10,6 +10,7 @@ import {
   LinkIcon,
   PanelLeft,
   PanelsLeftBottom,
+  Tag,
 } from '@/components/icons';
 import { UserButton } from '@/components/input/UserButton';
 import { Logo } from '@/components/svg';
@@ -65,6 +66,12 @@ export function SideNav(props: any) {
       label: t(labels.pixels),
       path: '/pixels',
       icon: <Grid2x2 />,
+    },
+    {
+      id: 'utm',
+      label: 'UTM-Baukasten',
+      path: '/utm',
+      icon: <Tag />,
     },
   ];
 

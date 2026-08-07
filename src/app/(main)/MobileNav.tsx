@@ -3,7 +3,7 @@ import Link from '@/components/common/Link';
 import { WebsiteNav } from '@/app/(main)/websites/[websiteId]/WebsiteNav';
 import { IconLabel } from '@/components/common/IconLabel';
 import { useMessages, useNavigation } from '@/components/hooks';
-import { Globe, Grid2x2, LayoutDashboard, LinkIcon } from '@/components/icons';
+import { Globe, Grid2x2, LayoutDashboard, LinkIcon, Tag } from '@/components/icons';
 import { MobileMenuButton } from '@/components/input/MobileMenuButton';
 import { UserButton } from '@/components/input/UserButton';
 import { Logo } from '@/components/svg';
@@ -41,6 +41,12 @@ export function MobileNav() {
       label: t(labels.pixels),
       path: '/pixels',
       icon: <Grid2x2 />,
+    },
+    {
+      id: 'utm',
+      label: 'UTM-Baukasten',
+      path: '/utm',
+      icon: <Tag />,
     },
   ];
 
