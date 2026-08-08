@@ -62,11 +62,59 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Next.js's own package.json (now sitting in /app from the standalone COPY) pulls in its
 # transitive build tooling (@swc/core, @parcel/watcher, ...), so this `pnpm add` needs the
 # same allowBuilds decisions as the deps stage -- copy pnpm-workspace.yaml here too.
+#
+# Deliberately NOT installing @prisma/client or @prisma/adapter-pg here (only the `prisma`
+# CLI, which check-db.js needs for `execSync('prisma migrate deploy')` and is invoked as a
+# binary, not imported -- so Next.js's output tracing never sees it and it's genuinely
+# missing without this). @prisma/client + @prisma/adapter-pg ARE imported by the actual app
+# code, so Next.js's tracer already bundled a working copy into .next/standalone.
+#
+# Explicitly pinning pg@8.20.0 (the exact root-lockfile version, also a direct app
+# dependency): without it, installing the `prisma` CLI here pulls in its OWN transitive
+# `pg` resolution (observed: 8.22.0) into this shared node_modules, silently overwriting
+# the correct 8.20.0 the app itself depends on. If you add anything else to this line,
+# check whether the root lockfile already pins a version for it and pin it explicitly
+# here too, rather than letting pnpm resolve it independently.
 COPY pnpm-workspace.yaml ./
 RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' add npm-run-all dotenv chalk semver \
     prisma@${PRISMA_VERSION} \
-    @prisma/client@${PRISMA_VERSION} \
-    @prisma/adapter-pg@${PRISMA_VERSION}
+    pg@8.20.0
+
+# Turbopack's `next build` (in the builder stage) creates synthetic hash-suffixed "external
+# module" symlinks under .next/node_modules/<pkg>-<hash> for packages like @prisma/client
+# that it treats as externals rather than bundling directly (needed for Prisma's
+# dynamically-loaded driver adapters). Each symlink is hardcoded to the EXACT pnpm
+# virtual-store path that package happened to live at during THAT build -- but
+# .next/standalone's own COPY does not preserve that exact virtual-store layout, and pnpm's
+# peer-dependency-aware store can resolve a *different* instance of the same package
+# depending on what else gets installed afterward (e.g. the `prisma` CLI pinned above has
+# its own peer requirement on @prisma/client, which pnpm satisfies via a distinct virtual-
+# store branch). Net effect: these symlinks end up dangling, and any request that touches
+# that code path 500s with "Cannot find module '<pkg>-<hash>/...'" -- this broke
+# /api/config and /api/auth/verify (blank login page) on 2026-08-07; see CLAUDE.md
+# "VORFALL 2026-08-07" for the incident writeup. This reproduces even without any of the
+# pnpm-add packages above (root cause is Turbopack's own externals tracing for Prisma
+# driver adapters, not something introduced by this Dockerfile) -- so repair it
+# unconditionally: any dangling <pkg>-<hash> symlink gets re-pointed at the real,
+# correctly-resolved top-level package this image actually ships.
+RUN find .next -type l -path '*/node_modules/*' 2>/dev/null | while read -r link; do \
+      if [ ! -e "$link" ]; then \
+        name=$(basename "$link"); \
+        pkg=$(echo "$name" | sed -E 's/-[0-9a-f]{8,}$//'); \
+        scope=$(basename "$(dirname "$link")"); \
+        case "$scope" in \
+          @*) real="/app/node_modules/$scope/$pkg" ;; \
+          *)  real="/app/node_modules/$pkg" ;; \
+        esac; \
+        if [ -e "$real" ]; then \
+          rm "$link"; \
+          ln -s "$real" "$link"; \
+          echo "repaired dangling symlink: $link -> $real"; \
+        else \
+          echo "WARNING: dangling symlink $link has no repair target at $real -- investigate"; \
+        fi; \
+      fi; \
+    done
 
 USER nextjs
 
